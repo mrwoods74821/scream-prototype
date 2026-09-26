@@ -12,7 +12,7 @@ export STEAM_COMPAT_DATA_PATH=~/.steam/debian-installation/steamapps/compatdata/
 "$HOME/.steam/debian-installation/steamapps/compatibilitytools.d/GE-Proton11-6/proton" \
   waitforexitandrun ./scream_win32_public_dev.exe [args]
 ```
-- Crash log: `42151_5/crash.txt`. Proton log: PROTON_LOG=1 → `~/steam-42150.log`. Network log toggles (engine members): `_socket_log`, `_packet_log`, `_rpc_log`, `_synchronizer_log` (set from Lua/console in dev build).
+- Crash log: `game/crash.txt`. Proton log: PROTON_LOG=1 → `~/steam-42150.log`. Network log toggles (engine members): `_socket_log`, `_packet_log`, `_rpc_log`, `_synchronizer_log` (set from Lua/console in dev build).
 - Exe dev flags: `-d <dir>` boot dir, `-o <file>` context override, `-s` no-splash, `-q` quiet, `-u` unit-test, `-exitdetect -crash -wait -delayedstart`.
 
 ## Formats (all documented in Hermes skills — reload before working)

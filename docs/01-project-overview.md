@@ -8,7 +8,7 @@
 
 ## Depot facts (verified on disk 2026-09-24)
 
-Directory: `~/Downloads/ScreamPrototype/42151_5/`
+Directory: `~/projects/scream-prototype/game/` (relocated from `~/Downloads/ScreamPrototype/42151_5/` on 2026-09-26)
 
 | Artifact | Notes |
 |---|---|
@@ -36,7 +36,7 @@ Directory: `~/Downloads/ScreamPrototype/42151_5/`
 
 - Steam non-Steam shortcut "SCREAM prototype" (pseudo-appid 3378621997), GE-Proton11-6 (also verified on Proton Experimental), prefix `~/.steam/debian-installation/steamapps/compatdata/3378621997/pfx`, legacy PhysX MSI installed in-prefix.
 - Boots to menu in bundled mode with NO launch arguments. Any `-d <dir>` loose-file args currently fail (`Could not load context.xml`) because the loose dev tree does not exist — that tree must be rebuilt by the toolchain phase.
-- Game crash log lands at `42151_5/crash.txt` (CWD-relative); Proton log at `~/steam-42150.log` with PROTON_LOG=1.
+- Game crash log lands at `game/crash.txt` (CWD-relative); Proton log at `~/steam-42150.log` with PROTON_LOG=1.
 
 ## Levels
 

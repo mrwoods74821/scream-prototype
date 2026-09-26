@@ -1,0 +1,9 @@
+<report platform="win32">
+	<target path="compiled\win32\index.bdb">
+		<source path="db\index.xml"/>
+		<source path="compiled\win32\db\index.bdb"/>
+		<source path="core\coredb\index.xml"/>
+		<source path="compiled\win32\core\coredb\index.bdb"/>
+	</target>
+	<target path="compiled\win32\compile_version.xml"/>
+</report>

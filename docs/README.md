@@ -33,4 +33,4 @@ The work is therefore **restoration and plumbing**, not writing netcode:
 
 - No assumptions; verify against local evidence; research unknowns externally.
 - Git, no backup copies, for file operations.
-- The game folder is `~/Downloads/ScreamPrototype/42151_5/` (raw depot; the old devroot/extracted trees are gone).
+- The game folder is `~/projects/scream-prototype/game/` (raw depot; extracted trees live in `extracted/`).

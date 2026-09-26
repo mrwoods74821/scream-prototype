@@ -41,17 +41,17 @@ a same-machine test. This is an emulator architecture limit, not a game bug.
 
 ## Instance2 setup (reusable for the LAN client machine)
 
-- `~/Downloads/ScreamPrototype/instance2/`: game copy + compatdata prefix
+- `~/projects/scream-prototype/game2/`: game copy + compatdata prefix
   (copied from host compatdata INCLUDING `tracked_files`, `version`,
   `config_info` — GE-Proton's update_builtin_libs requires them or the
   prefix copy dies with FileNotFoundError).
 - Wiped `AppData/Local/scream/{data,saves}` for clean state.
 - Launch: GE-Proton11-6 directly with
-  STEAM_COMPAT_DATA_PATH=instance2/compatdata, WINEPREFIX=.../pfx.
+  STEAM_COMPAT_DATA_PATH=game2/compatdata, WINEPREFIX=.../pfx.
 
 ## Next: LAN cross-machine (test ladder step 7)
 
-- Host: this machine via Steam. Client: second machine, copy instance2 (or
+- Host: this machine via Steam. Client: second machine, copy game2 (or
   fresh install + prefix with PhysX per skill scream-prototype-steam-launch).
 - BOTH on default Goldberg port (remove configs.main.ini or leave absent);
   discovery via UDP broadcast on the LAN — no port collision across machines.

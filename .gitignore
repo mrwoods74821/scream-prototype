@@ -1,5 +1,28 @@
-extracted_quick/
-extracted_stream/
-fcl_extracted/
-lua_src/
-luc_patched/
+# Large game data and extracted assets stay out of git (tracked by filesystem).
+game/
+game2/
+extracted/
+lua/
+luc/
+devroot/
+
+# Tool binaries and third-party source trees inside tools/
+tools/*.jar
+tools/unluac-hw/
+tools/unluac-src/
+tools/unluac-jmc.jar
+tools/uw/
+tools/luadec/
+tools/DieselFormats/
+tools/emu-win/
+tools/emu-win.7z
+tools/__pycache__/
+**/__pycache__/
+
+# Runtime / scratch
+*.log
+crash.txt
+crashlog.txt
+renderer_settings.xml
+*.out
+steam-*.log

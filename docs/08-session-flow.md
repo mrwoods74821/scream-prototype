@@ -2,7 +2,7 @@
 
 Recovered 2026-09-24 from the 100% decompilation (1026/1026 .luc files via
 luc_stock.py in-place transform + unluac). All facts cited from
-`lua_src/fcl/...` (boot.fcl layer) and `lua_src/quick/...` (quick.bundle layer).
+`lua/fcl/...` (boot.fcl layer) and `lua/quick/...` (quick.bundle layer).
 
 ## Platform selection (NetworkManager:create_lobby, NetworkManager.lua:227-287)
 
