@@ -16,6 +16,7 @@ existing systems, not writing new netcode.
 | Path | What it is |
 |---|---|
 | `game/` | The running game. Depot contents: `scream_win32_public_dev.exe`, `bundles/`, `data/`, `context.xml`, runtime DLLs, PDBs. **This is the playable build** (Goldberg Steam API + PhysX). |
+| `depot_42151_v5.7z` | The original teraleak depot archive (695 MB) that `game/` was extracted from — provenance source, kept for re-extraction. |
 | `game2/` | Second instance for two-machine/two-process join testing: a copy of `game/` plus its own `compatdata/` Proton prefix. |
 | `extracted/quick/` | Contents of `quick.bundle` (13,887 files: data, models, textures, scripts). |
 | `extracted/stream/` | Contents of `stream.bundle` (646 audio: wav/ogg). |

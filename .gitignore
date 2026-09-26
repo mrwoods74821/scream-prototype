@@ -5,6 +5,7 @@ extracted/
 lua/
 luc/
 devroot/
+depot_42151_v5.7z
 
 # Tool binaries and third-party source trees inside tools/
 tools/*.jar
