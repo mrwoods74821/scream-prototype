@@ -70,6 +70,9 @@ class Reader:
     def f32(self):
         return struct.unpack("<f", self.bytes(4))[0]
 
+    def f64(self):
+        return struct.unpack("<d", self.bytes(8))[0]
+
     def string(self):
         n = self.u32()  # size_t = 4 in GRIN build
         if n == 0:
@@ -96,6 +99,9 @@ class Writer:
     def f32(self, v):
         self.out += struct.pack("<f", v)
 
+    def f64(self, v):
+        self.out += struct.pack("<d", v)
+
     def string(self, s):
         if s is None:
             self.u32(0)
@@ -111,7 +117,7 @@ class Proto:
                  "lineinfo", "locvars", "upvals")
 
 
-def read_proto(r: Reader) -> Proto:
+def read_proto(r: Reader, snum: int = 4) -> Proto:
     p = Proto()
     p.source = r.string()
     p.linedefined = r.i32()
@@ -131,13 +137,13 @@ def read_proto(r: Reader) -> Proto:
         elif t == 1:
             p.k.append(bool(r.u8()))
         elif t == 3:
-            p.k.append(r.f32())
+            p.k.append(r.f32() if snum == 4 else r.f64())
         elif t == 4:
             p.k.append(r.string())
         else:
             raise ValueError(f"const type {t}")
     n = r.u32()
-    p.protos = [read_proto(r) for _ in range(n)]
+    p.protos = [read_proto(r, snum) for _ in range(n)]
     n = r.u32()
     p.lineinfo = [r.i32() for _ in range(n)]
     n = r.u32()
@@ -150,7 +156,7 @@ def read_proto(r: Reader) -> Proto:
     return p
 
 
-def write_proto(w: Writer, p: Proto):
+def write_proto(w: Writer, p: Proto, snum: int = 4):
     w.string(p.source)
     w.i32(p.linedefined)
     w.i32(p.lastlinedefined)
@@ -170,13 +176,16 @@ def write_proto(w: Writer, p: Proto):
             w.u8(1 if kv else 0)
         elif isinstance(kv, float):
             w.u8(3)
-            w.f32(kv)
+            if snum == 4:
+                w.f32(kv)
+            else:
+                w.f64(kv)
         else:
             w.u8(4)
             w.string(kv)
     w.u32(len(p.protos))
     for sp in p.protos:
-        write_proto(w, sp)
+        write_proto(w, sp, snum)
     w.u32(len(p.lineinfo))
     for li in p.lineinfo:
         w.i32(li)
@@ -198,13 +207,16 @@ def parse_chunk(data: bytes):
     ver, fmt = r.u8(), r.u8()
     if ver != 0x51:
         raise ValueError(f"version {ver:#x}")
-    endian, sint, ssize, sinc, snum, integral = (r.u8() for _ in range(6))
-    if (endian, sint, ssize, sinc, snum) != (1, 4, 4, 4, 4):
+    endian, sint, ssize, sinc, snum_h, integral = (r.u8() for _ in range(6))
+    if (endian, sint, ssize, sinc) != (1, 4, 4, 4):
         raise ValueError(
             f"unexpected header sizes endi={endian} int={sint} size_t={ssize} "
-            f"ins={sinc} num={snum} integral={integral}"
+            f"ins={sinc} num={snum_h} integral={integral}"
         )
-    proto = read_proto(r)
+    if snum_h not in (4, 8):
+        raise ValueError(f"unsupported snum {snum_h}")
+    snum = snum_h  # honor the header
+    proto = read_proto(r, snum)
     if r.p != len(data):
         raise ValueError(f"trailing bytes: consumed {r.p} of {len(data)}")
     return proto
@@ -271,6 +283,81 @@ def transform_chunk(p: Proto) -> Proto:
     # lineinfo/locvars are now rebuilt inside transform_proto
     np, pairs, lone = transform_proto(p)
     return np
+
+
+def inverse_proto(p: Proto) -> tuple[Proto, int, int]:
+    """Stock Lua 5.1 generic-for -> GRIN dialect. The exact inverse of
+    transform_proto (2-instruction in-place rewrite, no index shifting):
+
+      TFORLOOP A B C  +  JMP sBx   ->  TFORCALL (A+3) 3 (C+1)  +  TESTNIL (A+2) sBx
+
+    Field mapping (skill diesel-luc-decompile, proven vs luac5.1 -l ground truth):
+      GRIN A_g = first loop var register = base+3      -> stock A = base
+      GRIN B   = constant 3                            -> stock B = 0 (unused)
+      GRIN C_g = var_count+1 (nresults+1 encoding)     -> stock C = var_count
+      GRIN TESTNIL A_t = base+2 (control register)     -> (stock has no A here)
+
+    Standalone JMP following a TFORLOOP is left as-is. The forward transform
+    drops the A field of lone TESTNILs (JMP has no A), so files containing
+    lone TESTNILs (FCL quirk) are excluded from the strict byte-identical
+    property test and re-checked via unluac round trip instead.
+    """
+    code = list(p.code)
+    pairs = 0
+    lone = 0
+    i = 0
+    while i < len(code):
+        op = code[i] & 0x3F
+        if op == TFORLOOP:
+            if i + 1 < len(code) and (code[i + 1] & 0x3F) == JMP:
+                _, a, b, c, _, sbx = dec_op(code[i])
+                code[i] = enc_abc(TFORCALL, a + 3, 3, c + 1)
+                code[i + 1] = enc_asbx(TESTNIL, a + 2, sbx)
+                pairs += 1
+                i += 2
+            else:
+                i += 1
+        else:
+            i += 1
+    np = Proto()
+    np.source = p.source
+    np.linedefined = p.linedefined
+    np.lastlinedefined = p.lastlinedefined
+    np.nups, np.numparams, np.is_vararg = p.nups, p.numparams, p.is_vararg
+    np.maxstack = p.maxstack
+    np.code = code
+    np.k = p.k
+    np.lineinfo = p.lineinfo
+    np.locvars = p.locvars
+    np.upvals = p.upvals
+    np.protos = []
+    for sp in p.protos:
+        tsp, pr, lr = inverse_proto(sp)
+        np.protos.append(tsp)
+        pairs += pr
+        lone += lr
+    return np, pairs, lone
+
+
+def inverse_chunk(p: Proto) -> Proto:
+    np, _, _ = inverse_proto(p)
+    return np
+
+
+def write_chunk(proto: Proto, snum: int = 4) -> bytes:
+    """Write a full chunk (header + proto). snum=4 -> GRIN, snum=8 -> stock."""
+    w = Writer()
+    w.bytes(b"\x1bLua")
+    w.u8(0x51)
+    w.u8(0)
+    w.u8(1)
+    w.u8(4)
+    w.u8(4)
+    w.u8(4)
+    w.u8(snum)
+    w.u8(0)
+    write_proto(w, proto, snum)
+    return bytes(w.out)
 
 
 def main():
