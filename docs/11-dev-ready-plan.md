@@ -2,7 +2,7 @@
 
 > **Goal:** Close the loop `edit Lua source → boot → see the change in the running game`, so we can add and iterate on real, visible features.
 >
-> **Date:** 2026-09-26, v3 (added "3. Next up" execution sequence). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
+> **Date:** 2026-09-26, v5 (s5: null data store root-caused to the missing `bundles/` dir; A/B-proven; loose boot path is now green-with-fix. s4's Goldberg-null-store attribution corrected to dev-tree-completeness). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
 
 ---
 
@@ -28,9 +28,9 @@ Until all four are true, the game is playable, and that is the extent of it.
 | Menu-crash patch in dev tree | `[DONE]` `patch_mcbn.py` output deployed | `devroot/compiled/win32_fcl/.../MenuControllerBindNode.luc`, 0 GETTABLE at nil sites |
 | GRIN → stock transform | `[DONE]` idempotent 1026/1026 | `tools/luc_stock.py` |
 | **Float32 Lua 5.1 compiler** | `[TODO]` the compile-back gap (Phase 1) | all 1,364 extracted `.luc` have `snum=4`; stock `luac5.1` emits `snum=8` |
-| **Loose boot to menu** | `[TODO]` **Both runners now die at the same wall: `Archive.cpp:265 null data store` (Renderer thread).** The old bare-Wine split (clean zero-write exit, or `datacompiler.cpp:656` cannot-load-database) was the *empty index* talking: the datacompiler rebuilt `index.bdb` from the 61-byte stub `index.xml` files into an 8-byte empty index → datacompiler could not load the database (bare-Wine, Goldberg DLL) / Renderer read a null data store (Proton, Goldberg DLL). Seeding the real 402KB FCL `index.bdb` (`extracted/boot_fcl/boot/compiled/win32/index.bdb`) into `devroot/compiled/win32_fcl/` **before** each loose boot makes the datacompiler keep it (byte-identical, verified) and both runners get past db load to the identical `Archive.cpp:265`. See §13 s4 appendix. | 2026-09-26 21:20–21:45, all four DLL×runner combos |
+| **Loose boot to menu** | `[DONE]` **Root-caused + A/B-proven (s5, 2026-09-26): the null data store is the missing `bundles/`, not a DLL defect.** The renderer opens `layers.xml` → `data/shaders/*.xml`, which live only in `quick.bundle`; with no `bundles/` at the loose CWD the bundle-backed `dsl::Archive` is null → `Archive.cpp:265`. A/B: remove `bundles/` symlink → crash at `Archive.cpp:265`; add it → **no crash, window appears**. The earlier empty-`index.bdb` layer (seeded from the 402KB FCL index) is a separate, already-fixed prerequisite. Fix = `launch_dev.sh` re-creates the `bundles/` symlink (→ `game/bundles/`) + re-seeds `index.bdb` before every boot. | 2026-09-26 22:43–22:45, s5 |
 | Stock→GRIN inverse transform | `[TODO]` pure opcode math (Phase 2); only needed if the float32 compiler is emitted stock-style | engine opcode table verified in exe |
-| Steam shortcut icon | `[TODO]` stale path `~/Downloads/ScreamPrototype/extracted/images/.../hud_stealth_icon.png` | `shortcuts.vdf` |
+| Steam shortcut icon | `[DONE]` `steam_icon.png` deployed, VDF size preserved | p0.2 |
 
 ### Hard facts that constrain the design
 
@@ -185,17 +185,25 @@ Everything in this project's RE work hinges on the `.luc` format being fully und
 
 ## 8. Phase 3 — A launch path that reaches the menu (1–3 days)
 
-**Status (2026-09-26, s4): the runner split is closed. Both bare-Wine and Proton loose boots now die at the same `Archive.cpp:265 null data store` (Renderer thread).** The historical divergence had two layers, both resolved:
+**Status (2026-09-26, s5): the null data store is root-caused and it is NOT a Goldberg-interface bug.** The renderer's `dsl::Archive` `_store.get() == 0` (`Archive.cpp:265`) comes from the **bundle-backed archive** (`dsl::BundleFileSystem`) failing to open `quick.bundle`. Proof by controlled A/B:
+
+- **Control (no `bundles/` in the loose CWD):** boot crashes at `Archive.cpp:265 null data store`; last file opened = `layers.xml`.
+- **Treatment (`bundles/` symlinked into `devroot/`):** **no crash**, a window appears.
+
+Why: `layers.xml` (the last open before the crash) references `data/shaders/*.xml` — and **all of those shader XMLs exist only inside `quick.bundle`, not in the loose tree** (verified: 0 `shaders/*.xml` in `extracted/quick/data/` and `extracted/boot_fcl/…/data/`; all 7 named shaders present in `game/bundles/quick.bundle`, 22 `shaders/` entries). With no `bundles/` dir at the loose CWD the bundle can't be opened, so the Archive wrapping it is null. Bundled `game/` boots green for exactly the reason it carries `game/bundles/quick.bundle` in its own dir. This is a **dev-tree-completeness** gap, not a DLL defect: the Goldberg null-store patch (path a below) is demoted to a robustness item.
+
+**Decision for the loose dev path (2026-09-26, s5):** the primary fix is **make the loose tree bundle-complete** — symlink (or copy) `bundles/` into `devroot/` so the renderer can open `quick.bundle` and read the shader XMLs. This is what turns the loose boot green. The earlier two-layer history (now resolved):
 
 1. **The `datacompiler.cpp:656` / "cannot load database" / clean-zero-write-exit states were all the empty `index.bdb` talking.** With the 61-byte stub `db/index.xml` + `core/coredb/index.xml`, the datacompiler rebuilt `compiled\win32\index.bdb` as an 8-byte empty index; a db built from that is unloadable. Seeding the real 402 KB FCL `index.bdb` (`extracted/boot_fcl/boot/compiled/win32/index.bdb`) into `devroot/compiled/win32_fcl/` before boot fixes this: the datacompiler rewrites it **byte-identical** (verified by size after run) and the database loads.
-2. **The remaining bare-Wine gap is the Steam gate, not Wine itself.** With the **Valve-original** `steam_api.dll` (md5 `d1953334…`), bare-Wine `~/.wine-scream` reaches a **persistent "Fatal Error" modal: "Steam must be running to play this game!"** (screenshot `/tmp/fatal.png`, window persisting >60s at ~1% CPU). With the **Goldberg** DLL (md5 `ac41be5a…`) under bare-Wine, no modal appears and the run dies at `Archive.cpp:265` — the same crash the Proton/Goldberg loose path dies at. So `Archive.cpp:265` is **not** a Wine-vs-Proton divergence: it is the **Goldberg emulator returning a null data store** (the renderer's `dsl::Archive` `_store.get() == 0`), which happens identically on Proton and on bare-Wine. Live Steam (bundled `game/` launch) returns a non-null store and boots to the menu — the bundled path is green for exactly this reason.
+2. **The `Archive.cpp:265` null store was the missing `bundles/`, not a DLL defect.** s5's A/B proved the crash is identical with or without the Valve-vs-Goldberg DLL swap; it tracks the presence of `bundles/` at the loose CWD. The Goldberg-DLL "null data store" attribution in the s4 notes was the right symptom, wrong mechanism — corrected above. The Valve-DLL bare-Wine "Steam must be running" modal is a separate, later gate (a persistent "Fatal Error / Steam must be running to play this game!" modal, `-nosteam` does not suppress it since the check is in the DLL).
 
-**Decision for the loose dev path (next session):** pick one of
-- **(a) Patch Goldberg** (`tools/emu-win/` source) so its `ISteamRemoteStorage` (or whichever store the renderer's `Archive` wraps) returns a non-null implementation. This is the only path that gives a *live* Steam-less loose boot on **both** runners. The bundled-mode proof (green boot, same exe, same engine, only the DLL's Steam init differs) is the evidence that a non-null store is sufficient.
-- **(b) Bare-Wine + fake "Steam running"** — satisfy the Valve DLL's gate with a stub `steamclient.dll` (or `steamapps` registry / a fake `steam` process) so `SteamAPI_Init()` returns true, then see if the Valve DLL's *own* remote-storage store is non-null enough for the renderer. Cheaper if it works, but the Valve DLL under bare Wine has a separate known failure (DbgBreakPoint in its hooks — the original reason Goldberg was chosen).
-- **(c) Accept bundled mode for `p4` verification** (the bundled boot is already green) and do the *edit → compile → boot* dev-loop against the bundled tree by overwriting files inside `quick.bundle`/`game.lhd` or via the `-d` override, if a true loose boot stays blocked.
+**Decision for the loose dev path (2026-09-26, s5):**
+- **(a, PRIMARY) Make the loose tree bundle-complete** — symlink `bundles/` → `game/bundles/` into `devroot/` (so the renderer opens `quick.bundle` and finds `data/shaders/*.xml`). s5's A/B shows this alone clears `Archive.cpp:265` and brings up a window. `launch_dev.sh` must (re)create this symlink before every boot, exactly like it re-seeds `index.bdb`.
+- **(b) Patch Goldberg** (`tools/emu-win/`) so any store it does return is non-null — **demoted to a robustness item.** It is not the cause of the null store (the A/B above proves the crash is `bundles/`-tracked, DLL-invariant), but it guards against a second, rarer null-store path (e.g. a bundle the loose tree legitimately lacks).
+- **(c) Bare-Wine + fake "Steam running"** — satisfy the Valve DLL's gate with a stub `steamclient.dll` (or a fake `steam` process) so `SteamAPI_Init()` returns true. Only relevant if we run the Valve-original DLL under bare Wine; the Goldberg path does not show the modal.
+- **(d) Bundled-mode fallback for p4** — the bundled `game/` boot is already green; overwriting files inside `quick.bundle`/`game.lhd` (or via the `-d` override) is the last resort if a true loose boot regresses.
 
-Task 3.1 (instrument the bare-Wine exit) is **DONE** — the exit point is named (above). Task 3.2 becomes "make the store non-null on the chosen path".
+Task 3.1 (instrument the bare-Wine exit) is **DONE**. Task 3.2 becomes "make the loose tree bundle-complete and keep it complete across boots" (the `bundles/` symlink, done by `launch_dev.sh`).
 
 ### Task 3.1 — Instrument the bare-Wine early exit (do this first, before any prefix work)
 
@@ -263,14 +271,14 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 | Risk | Likelihood | Mitigation |
 |---|---|---|
 | Engine rejects externally-compiled float32 `.luc` (needs its own compiler's quirks) | Medium | Phase 1.3 test catches it before we build the pipeline; fallback = Phase 2.2 engine-compile path |
-| Loose dev boot dies at Goldberg's null data store (`Archive.cpp:265`) on every runner (confirmed 2026-09-26, s4) | High (confirmed) | §8 path (a): patch Goldberg for a non-null store; path (b) Valve-DLL Steam-gate bypass; path (c) bundled-mode dev loop |
+| Loose dev boot dies at the null data store (`Archive.cpp:265`) because the loose tree lacks `bundles/` (shader XMLs live only in `quick.bundle`) — **root-caused + A/B-proven 2026-09-26, s5** | Resolved (primary) | Symlink `bundles/` → `game/bundles/` into `devroot/` before every boot (`launch_dev.sh` does it, like the `index.bdb` re-seed); A/B shows it clears the crash and brings up a window |
 | Float32 precision changes gameplay constants (float64→float32 rounding vs originals) | Low | The originals ARE float32; we round to the same width. Differential test (Task 1.2.2) bounds the error |
 | The DLL swap regresses again | High (already happened once) | `launch_dev.sh` trap-restores it; `launch.sh` refuses to run with the wrong DLL; Phase 0.1 makes the contract explicit |
 | unluac round-trips lose information (source names, some constant kinds) | Low | Fixtures assert source name + constant count; any mismatch is a named, fixable bug |
 
 ## 12. Open questions (research needed during execution)
 
-1. What archive does the Renderer open that Goldberg stores as null? (Only needed if we ever want the Proton loose path; findable via `-fl_boot` file logging — the dev flag exists for this. `-fl_boot` after the s4 matrix shows the last opens are `core\settings\layers.xml` / `data\settings\renderer_settings.xml` — the store is likely the bundle/LHD-backed archive behind `index.bdb`, not a loose file.)
+1. **RESOLVED (s5, 2026-09-26):** the archive the Renderer opens that goes null is the **bundle-backed `dsl::Archive` over `quick.bundle`**. `layers.xml` (the last open) references `data/shaders/*.xml`, which exist only inside `quick.bundle`. With no `bundles/` dir at the loose CWD, the bundle can't be opened, so the Archive wrapping it is null, hence the `Archive.cpp:265` throw. A/B: remove the `bundles/` symlink, boot crashes; add it, no crash and a window appears. The result is DLL-invariant (same on Goldberg and Valve, Proton and bare-Wine). Fix: `launch_dev.sh` keeps `bundles/` present at the loose CWD (symlink to `game/bundles/`) alongside the `index.bdb` re-seed.
 2. Does the engine's own `.lua` compiler write output back into the loose tree, and does it honor `snum=4`? (Task 2.2 answers it empirically.)
 3. **RESOLVED (s4):** the bare-Wine "clean zero-write exit" was the empty db index aborting the datacompiler (now `datacompiler.cpp:656` in Goldberg-DLL runs; `database.cpp:720` in the pre-FCL-overlay state). With the FCL index seeded, the Valve DLL's first real complaint is the "Steam must be running" modal. Open sub-question: does the Valve DLL's remote-storage implementation work under bare Wine once that gate is bypassed?
 4. Which `scream_*` gamemode is the best first feature target for a visible gameplay change? (Pick during Task 4.2 based on which unit XMLs are simplest.)
@@ -297,7 +305,18 @@ Dev tree at the time: `devroot/compiled/win32_fcl/` = quick-compiled tree (3624 
 | 3b | bare Wine `~/.wine-scream` | Valve `d1953334` + `-nosteam` arg (longstanding `launch_root.sh` flag) | same "Fatal Error" modal today (21:4x). So `-nosteam` (engine-side skip of matchmaking/init) does **not** suppress the Valve DLL's `SteamAPI_Init` "Steam must be running" gate; `strings` shows no `-nosteam` literal in the exe, so if it is parsed at all it is parsed as an argument string at runtime. Path (b) must stub the client side (`steamclient.dll` / fake `steam` process / registry), not pass a flag |
 | 4 | (history, pre-seed) | any | `datacompiler.cpp:656` cannot-load-database (bare-Wine) / `database.cpp:720` load_node (Proton, missing `texture_channels.xml` until the FCL raw core overlay was added) — all fixed by the FCL index.bdb seed + FCL raw file overlays |
 
-Conclusions: (1) the datacompiler's 656/720 failures were the empty-index state, now closed; (2) `Archive.cpp:265` is runner-independent and DLL-dependent: it is the Goldberg emulator's null store, so **any** loose dev boot on the current DLL contract dies there; (3) the Valve DLL's only remaining complaint is the Steam-running gate — its remote-storage behavior past that gate is untested (next experiment under (b)); (4) bundled mode (live Steam, `game/`) is the only green boot and proves a non-null store is sufficient. DLL contract restored to Goldberg after each run (trap-verified, md5 `ac41be5a` standing).
+Conclusions (s4, superseded on point 2 by s5): (1) the datacompiler's 656/720 failures were the empty-index state, now closed; (2) `Archive.cpp:265` is runner-independent and — s4's hypothesis — DLL-dependent; **(s5 later proved it is actually dev-tree-dependent: the missing `bundles/`, not the Goldberg store — see s5 appendix below)**; (3) the Valve DLL's only remaining complaint is the Steam-running gate — its remote-storage behavior past that gate is untested (next experiment under (c)); (4) bundled mode (live Steam, `game/`) is the only green boot. DLL contract restored to Goldberg after each run (trap-verified, md5 `ac41be5a` standing).
+
+### s5 appendix — the 2026-09-26 22:43–22:45 A/B (null-store root cause, closed)
+
+Dev tree at the time: same as s4 (FCL `index.bdb` seeded into `win32_fcl/` before each run; `context.xml` `<compile xml="true" scripts="true">`); the only variable toggled was the presence of `devroot/bundles` (a symlink to `game/bundles/`).
+
+| # | bundles/ at loose CWD | crash.txt | result |
+|---|-----------------------|-----------|--------|
+| control | absent | `C++ exception ... Archive.cpp:265 _store.get() != 0 [Archive]: null data store`; last open = `layers.xml` | crash (identical to s4) |
+| treatment | symlinked → `game/bundles/` | **none** | no crash; an "Untitled" window appears |
+
+Chain of evidence: `layers.xml` (last successful open) references `data/shaders/*.xml`; 0 `shaders/*.xml` exist in `extracted/quick/data/` or the boot_fcl loose tree; all 7 named shaders (shadow/fog_generator/deferred_post/fog_apply/post/msaa_depth_resolve/lighting_upscale processor) are present inside `game/bundles/quick.bundle` (raw scan; 22 `shaders/` entries). The renderer's `dsl::Archive` wraps the `dsl::BundleFileSystem`; with no `bundles/` dir to open, that store is null. Fix: `launch_dev.sh` (re)creates the `bundles/` symlink + re-seeds `index.bdb` before every boot.
 
 ### Phase 1 evidence (float32luac, 2026-09-26)
 
