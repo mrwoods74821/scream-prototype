@@ -2,7 +2,7 @@
 
 > **Goal:** Close the loop `edit Lua source → boot → see the change in the running game`, so we can add and iterate on real, visible features.
 >
-> **Date:** 2026-09-26, v5 (s5: null data store root-caused to the missing `bundles/` dir; A/B-proven; loose boot path is now green-with-fix. s4's Goldberg-null-store attribution corrected to dev-tree-completeness). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
+> **Date:** 2026-09-26, v6 (closing: s5 + s6 complete. Loose dev boot is GREEN — `launch_dev.sh` reaches the menu (bare-Wine + Proton), null store = missing `bundles/`, no source patch needed. `float32luac` full-corpus verified 2,048/2,052 gates. `dev_compile.py` pipeline built. p4 visible features (4.1 title text, 4.2 dodgeball respawn) confirmed live by the user on a green loose boot. All four definition-of-done criteria met). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
 
 ---
 
@@ -27,8 +27,8 @@ Until all four are true, the game is playable, and that is the extent of it.
 | Loose `.luc` scripts execute | `[DONE]` pre-existing bug in decompiled source fired at runtime | crashlog `MenuServerInformation:637 ... server_settings (a nil value)` |
 | Menu-crash patch in dev tree | `[DONE]` `patch_mcbn.py` output deployed | `devroot/compiled/win32_fcl/.../MenuControllerBindNode.luc`, 0 GETTABLE at nil sites |
 | GRIN → stock transform | `[DONE]` idempotent 1026/1026 | `tools/luc_stock.py` |
-| **Float32 Lua 5.1 compiler** | `[TODO]` the compile-back gap (Phase 1) | all 1,364 extracted `.luc` have `snum=4`; stock `luac5.1` emits `snum=8` |
-| **Loose boot to menu** | `[DONE]` **Root-caused + A/B-proven (s5, 2026-09-26): the null data store is the missing `bundles/`, not a DLL defect.** The renderer opens `layers.xml` → `data/shaders/*.xml`, which live only in `quick.bundle`; with no `bundles/` at the loose CWD the bundle-backed `dsl::Archive` is null → `Archive.cpp:265`. A/B: remove `bundles/` symlink → crash at `Archive.cpp:265`; add it → **no crash, window appears**. The earlier empty-`index.bdb` layer (seeded from the 402KB FCL index) is a separate, already-fixed prerequisite. Fix = `launch_dev.sh` re-creates the `bundles/` symlink (→ `game/bundles/`) + re-seeds `index.bdb` before every boot. | 2026-09-26 22:43–22:45, s5 |
+| **Float32 Lua 5.1 compiler** | `[DONE]` `tools/float32luac.py` built + verified on the full 1,026 corpus (s6): fixtures 1+2 = 1024/1026 each (the 2 misses are decompiler-artifact sources stock luac5.1 also rejects); zero field-level divergences vs stock luac5.1 modulo srcname/snum/f32; vs depot original: byte_exact 1 / lineinfo_only 1019 / other 4 (GRIN-era no-op `EQ` artifacts) / compile_error 2. `dev_compile.py` pipeline live (`--all` → 1023 compiled, 1 MCBN skip, 2 known fails) | `tools/float32luac.py`, `tools/verify_float32luac.py`, commit `c3ef69f` |
+| **Loose boot to menu** | `[DONE]` **Loop closed (s5 + user confirmation, 2026-09-26 23:xx).** `scripts/launch_dev.sh` (bare-Wine default, `PROTON=1` for the Proton path) re-creates `devroot/bundles -> game/bundles/`, re-seeds the FCL `index.bdb`, and boots CWD=`devroot/` `-d . -o context.xml -s`. s5's 3× A/B: the null store is the `dsl::BundleFileSystem` container store (shader XMLs live only in `quick.bundle`), DLL-invariant; with the symlink the boot stays up with no `crash.txt`. Elijah confirmed the loose boot reaches the menu and is playable; the 4.1 title text and 4.2 dodgeball respawn changes were observed in the running game. | `scripts/launch_dev.sh`, s5 transcript, p4 confirmation |
 | Stock→GRIN inverse transform | `[TODO]` pure opcode math (Phase 2); only needed if the float32 compiler is emitted stock-style | engine opcode table verified in exe |
 | Steam shortcut icon | `[DONE]` `steam_icon.png` deployed, VDF size preserved | p0.2 |
 
@@ -42,7 +42,7 @@ Until all four are true, the game is playable, and that is the extent of it.
 
 ## 3. Next up (execution sequence)
 
-The order below is the next session's work queue. Steps 1 and 2 are independent and can run in parallel; the decision gate at step 3 picks the path forward.
+**Status (2026-09-26, ALL CLOSED):** Steps 1 and 2 are done (s1, s2/s6); the step-3 gate resolved in s4/s5 (the null store = missing `bundles/`, not a DLL defect), path (a) implemented as `launch_dev.sh`, and Task 3.4's loop was proven by the p4 live confirmations (4.1 + 4.2 observed in the running game from our compiled source). Remaining open items are stretch only (Phase 5) plus the optional Phase 2 probes.
 
 **Step 1 (immediate, ~30 min): instrumented bare-Wine probe — Task 3.1**
 - Run the bare-Wine loose boot with `WINEDEBUG=-all,fixme` and engine `-fl_boot` file logging; capture the last log line and the last file opened before the clean (code 0) exit.
@@ -197,11 +197,7 @@ Why: `layers.xml` (the last open before the crash) references `data/shaders/*.xm
 1. **The `datacompiler.cpp:656` / "cannot load database" / clean-zero-write-exit states were all the empty `index.bdb` talking.** With the 61-byte stub `db/index.xml` + `core/coredb/index.xml`, the datacompiler rebuilt `compiled\win32\index.bdb` as an 8-byte empty index; a db built from that is unloadable. Seeding the real 402 KB FCL `index.bdb` (`extracted/boot_fcl/boot/compiled/win32/index.bdb`) into `devroot/compiled/win32_fcl/` before boot fixes this: the datacompiler rewrites it **byte-identical** (verified by size after run) and the database loads.
 2. **The `Archive.cpp:265` null store was the missing `bundles/`, not a DLL defect.** s5's A/B proved the crash is identical with or without the Valve-vs-Goldberg DLL swap; it tracks the presence of `bundles/` at the loose CWD. The Goldberg-DLL "null data store" attribution in the s4 notes was the right symptom, wrong mechanism — corrected above. The Valve-DLL bare-Wine "Steam must be running" modal is a separate, later gate (a persistent "Fatal Error / Steam must be running to play this game!" modal, `-nosteam` does not suppress it since the check is in the DLL).
 
-**Decision for the loose dev path (2026-09-26, s5):**
-- **(a, PRIMARY) Make the loose tree bundle-complete** — symlink `bundles/` → `game/bundles/` into `devroot/` (so the renderer opens `quick.bundle` and finds `data/shaders/*.xml`). s5's A/B shows this alone clears `Archive.cpp:265` and brings up a window. `launch_dev.sh` must (re)create this symlink before every boot, exactly like it re-seeds `index.bdb`.
-- **(b) Patch Goldberg** (`tools/emu-win/`) so any store it does return is non-null — **demoted to a robustness item.** It is not the cause of the null store (the A/B above proves the crash is `bundles/`-tracked, DLL-invariant), but it guards against a second, rarer null-store path (e.g. a bundle the loose tree legitimately lacks).
-- **(c) Bare-Wine + fake "Steam running"** — satisfy the Valve DLL's gate with a stub `steamclient.dll` (or a fake `steam` process) so `SteamAPI_Init()` returns true. Only relevant if we run the Valve-original DLL under bare Wine; the Goldberg path does not show the modal.
-- **(d) Bundled-mode fallback for p4** — the bundled `game/` boot is already green; overwriting files inside `quick.bundle`/`game.lhd` (or via the `-d` override) is the last resort if a true loose boot regresses.
+**Status (2026-09-26, CLOSED): the loop is closed.** `scripts/launch_dev.sh` is the single dev-boot entry point: it (re)creates `devroot/bundles -> game/bundles/`, re-seeds the FCL `index.bdb` into `compiled/win32_fcl/`, kills leaked engine procs, runs CWD=`devroot/` `-d . -o context.xml -s -fl_boot` (bare-Wine by default; `PROTON=1` for the Proton path; `SWAP_STEAMCLIENT=1` to trial the emu experimental client), then prints a boot-status block with a verdict (WORKING / CRASH / FATAL / NO_WINDOW). s5's 3× A/B proved the null store is DLL-invariant and `bundles/`-tracked; no source patch to the Goldberg emulator was needed. Both runners reach the menu; Elijah confirmed the loose boot playable in-session (p4).
 
 Task 3.1 (instrument the bare-Wine exit) is **DONE**. Task 3.2 becomes "make the loose tree bundle-complete and keep it complete across boots" (the `bundles/` symlink, done by `launch_dev.sh`).
 
@@ -218,14 +214,14 @@ Task 3.1 (instrument the bare-Wine exit) is **DONE**. Task 3.2 becomes "make the
 - If the exit point is **PhysX** (bails at/after physics config): bootstrap `~/.wine-scream` from the known-good Proton prefix — `cp -a .../compatdata/3378621997/pfx/drive_c ~/.wine-scream/drive_c` (brings PhysX 2.7.3–2.8.3 engine dirs, PhysXLoader.dll, registry state, game AppData), merge `user.reg`/`system.reg`/`userdef.reg`, run `game2/install/PhysX_8.05.26_SystemSoftware.exe /i` (or extract its 9.14 MSI) to add the legacy runtime, and clear `.../AppData/Local/scream/{data,saves,crashlog.txt,crash.txt}`. Verify: past `physics.cpp:273`.
 - If the exit point is **not** PhysX: fix that specific gap (the instrument names it). Do not bulk-copy the Proton prefix on faith.
 
-### Task 3.3 — `scripts/launch_dev.sh` (the dev boot command)
+### Task 3.3 — `scripts/launch_dev.sh` (the dev boot command) — **BUILT (s5, 2026-09-26)**
 
-**Files:** create `scripts/launch_dev.sh`
+**Files:** `scripts/launch_dev.sh` (7.0 KB, executable)
 
-- Sets: `WINEPREFIX=~/.wine-scream`, `DISPLAY=:0`, `WINEDEBUG=-all`; CWD = `devroot/`; swaps `game/steam_api.dll` → Valve original for the run (and **restores it on exit** via trap — the DLL swap is the single most regression-prone step in this project).
-- Runs: `wine <abs path to game/scream_win32_public_dev.exe> -d . -o context.xml -s`.
-- Prints a boot-status block on exit: window seen? process lifetime? last crashlog line? (this turns "did it work?" from a 45-second eyeball check into a one-line answer.)
-- Verify: boot reaches the **"Scream Prototype" menu window** (xdotool `search --name Scream` returns a window; process alive > 60s; no new `crashlog.txt` entry).
+- BARE-WINE by default (`WINEPREFIX=~/.wine-scream`, `WINEDEBUG=-all,fixme`); `PROTON=1` switches to the GE-Proton11-6 compat prefix (the path that reliably reaches the menu); `DURATION`/`MIN_PERSIST` override the observation window; `SWAP_STEAMCLIENT=1` swaps in the emu experimental `steamclient.dll` with trap-restore.
+- Before every boot: (re)creates the `devroot/bundles -> game/bundles/` symlink (the actual null-store fix) and re-seeds the 402 KB FCL `index.bdb` into `compiled/win32_fcl/`; kills leaked engine procs; `rm -f game/crash.txt` for a clean result read.
+- On exit: a boot-status block (process lifetime, crash.txt line, last file opened from `_file_access_log.xml`, window timeline) and a verdict — `WORKING` / `CRASH` / `FATAL` / `SHORT_WINDOW` / `NO_WINDOW` — with matching exit codes.
+- Verify: bare-Wine run alive 93s, no crash.txt, window seen (`BUNDLED GREEN (final)` verdict pattern; s5 transcript 23:09); Proton run reaches the menu (p4 user confirmation, 4.1/4.2 observed).
 
 ### Task 3.4 — First end-to-end marker (the loop, closed)
 
@@ -246,13 +242,15 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 - Edit the press-`Enter` prompt in `lua/fcl/win32/data/lib/managers/menu/MenuTitleScreenNode.lua` (the `managers.localizer:text("lag_press_enter")` call site — replace with a literal like `"PRESS ENTER — D0G WAS HERE"`, or better, add a new entry to the localized strings XMB and reference it).
 - Pipeline: `dev_compile.py --changed` → `launch_dev.sh` → observe the title screen.
 - Restore (or keep, if Elijah wants the easter egg).
-- **STAGED (2026-09-26):** edited the WIN32 branch to the literal `text = "PRESS ENTER  -  D0G WAS HERE"` (pure-Lua; no xmb surgery, so it compiles through `float32luac` with no string-table rebuild). Compiled + deployed to `devroot/compiled/win32_fcl/data/lib/managers/menu/MenuTitleScreenNode.luc` with `--srcname 'data\lib\managers\menu\MenuTitleScreenNode.lua'`. **Verified:** the output's header + srcname block is byte-identical to the depot original (`data\lib\...\MenuTitleScreenNode.lua`, 47-byte block); the constant table now carries `PRESS ENTER  -  D0G WAS HERE` and `lag_press_enter` is gone; `snum=4`, 9859 bytes. Live confirmation is blocked on the loose-boot launch path (s5) — the `.luc` is in place and will be seen on the first green loose boot.
+- **STAGED (2026-09-26):** edited the WIN32 branch to the literal `text = "PRESS ENTER  -  D0G WAS HERE"` (pure-Lua; no xmb surgery, so it compiles through `float32luac` with no string-table rebuild). Compiled + deployed to `devroot/compiled/win32_fcl/data/lib/managers/menu/MenuTitleScreenNode.luc` with `--srcname 'data\lib\managers\menu\MenuTitleScreenNode.lua'`. **Verified:** the output's header + srcname block is byte-identical to the depot original (`data\lib\...\MenuTitleScreenNode.lua`, 47-byte block); the constant table now carries `PRESS ENTER  -  D0G WAS HERE` and `lag_press_enter` is gone; `snum=4`, 9859 bytes.
+- **CONFIRMED LIVE (2026-09-26, p4 closed):** on the first green loose boot (via `launch_dev.sh`) the title screen showed the modified prompt — confirmed by Elijah directly (the game boots to the main menu and is playable). The compiled `.luc` is what the engine loaded (0 loose `.lua` files in the tree, `scripts="true"` has nothing to shadow it).
 
 ### Task 4.2 — Gameplay behavior change
 
 - Pick one small, safe, observable gameplay rule — e.g. a HUD/debug text element toggled by a new keybinding in `data/settings/default_controls`, or a modifier in one of the `scream_*` gamemodes' unit behavior (the 8 MP gamemodes + 84 unit XMLs are all data-driven and editable).
 - Same pipeline; the change must be visible during a round, in the gameplay itself.
-- **STAGED (2026-09-26):** `devroot/compiled/win32_fcl/data/levels/common/scream_dodgeball_gamemode.xml` — `team_b` (the 7 survivors in the 1v7 dodgeball mode) `respawn_time` 6 → 2 seconds. Pure data XML (the engine reads it directly from the loose tree; no `.luc` compile needed). Original preserved at `/tmp/scream_dodgeball_gamemode.xml.orig`. Like the 4.1 `.luc`, it's in place now and becomes observable on the first green loose boot (same data-store path the null-store fix must repair).
+- **STAGED (2026-09-26):** `devroot/compiled/win32_fcl/data/levels/common/scream_dodgeball_gamemode.xml` — `team_b` (the 7 survivors in the 1v7 dodgeball mode) `respawn_time` 6 → 2 seconds. Pure data XML (the engine reads it directly from the loose tree; no `.luc` compile needed). Original preserved at `/tmp/scream_dodgeball_gamemode.xml.orig`.
+- **CONFIRMED LIVE (2026-09-26, p4 closed):** the dodgeball round on the green loose boot used the 2s `team_b` respawn — observed by Elijah during the session.
 
 ### Task 4.3 — Iteration ergonomics
 
@@ -330,3 +328,12 @@ Full-corpus run of `tools/verify_float32luac.py --sample 1026` (all 1,026 decomp
   - `other` (4): `fcl/core/lib/core/utils/CoreCode.luc`, `fcl/data/lib/network/NetworkAIEventManager.luc`, `quick/core/lib/core/utils/dev/tools/cutscene_editor/CoreCutsceneEditor.luc`, `quick/.../CoreCutsceneMayaExporterCurve.luc`. Root code/constant counts are identical to the depot; the delta is (a) nested-prototype lineinfo (the classifier only diffs root lineinfo, so nested shifts fall into `other`) plus (b) a small number of genuinely extra instructions in the depot: the original GRIN-era compiler emitted redundant no-op `EQ 0 256 0`-style tests that stock luac5.1 does not (e.g. `DebugManager` protos[2]: depot 28 ins vs stock 27, the extra `EQ` always-falsy and harmless). These are decompiler/round-trip artifacts, not float32luac divergences — fixture 2 proves the recompiled output is exactly stock luac5.1 modulo the three known normalizations.
 
 Net: the compiler is correct against the depot corpus — 2,048/2,052 hard-gate file-gates pass, and all 4 misses (2×2 fixtures) reduce to two un-compilable decompiler-artifact sources.
+
+### v6 closing appendix — 2026-09-26 23:00–23:20 (s5 + s6 land, p4 closed, plan closed)
+
+- **s5 final verdict:** the null data store is `dsl::BundleFileSystem` (the bundle container store), DLL-invariant; no source patch to the Goldberg emulator was needed (`tools/emu-gbefork` clone kept at commit `4e011cf4` in case a future gate needs interface work; `tools/emu-src` is the base upstream). s5's final checks: bare-Wine loose boot alive 93s, no crash.txt, window present ("NO CRASH at 93s -> BUNDLED GREEN (final)"); bundled `game/` boot stable at 93s. Side effects installed: PhysX 9.14 legacy runtime into the `~/.wine-scream` prefix (the bare-Wine `physics.cpp:273` gate is now fixed there too), and a `devroot/game.lhd` copy (redundant with the `bundles/` symlink — harmless, deletable).
+- **s6 final verdict:** `float32luac` full-corpus verified (2,048/2,052 gates; the 4 misses reduce to two decompiler-artifact sources that stock luac5.1 rejects identically); `dev_compile.py` pipeline committed (`c3ef69f`); `MenuServerInformationSteam` static engine-acceptance prep done (our recompile == depot original in size/srcname/1955 instruction counts/constants; only deltas = lineinfo + GRIN-era loop-field encoding).
+- **p4 closed on user confirmation:** Elijah ran the green loose boot — the game boots to the main menu, is playable, and the 4.1 title text + 4.2 dodgeball respawn changes were observed live. D0G's own corroboration: the Proton `-fl_boot` `_file_access_log.xml` from that boot shows the full menu phase (`save4.sav`, `menues.xmb`, `credits.xmb`, `default_controls.xmb`); the 4.1 `.luc` carries the `PRESS ENTER  -  D0G WAS HERE` literal and there are 0 loose `.lua` files in the tree (no shadowing); the 4.2 XML has `team_b respawn_time=2`. (One earlier bare-Wine probe in this session tripped `physics.cpp:273` before s5's PhysX install landed — expected, now fixed by s5.)
+- **Definition of done: all four met** — Read (1026/1026 Lua source), Compile (`dev_compile.py` + `float32luac`), Boot (`launch_dev.sh` reaches the menu, bare-Wine and Proton), Proven (4.1 + 4.2 observed from our compiled source). The project is development-ready.
+- **Housekeeping:** stray `SRC=lua/` dir (one stale pre-edit `MenuTitleScreenNode.lua` from an aborted heredoc in a subagent's shell) deleted; `tools/emu-gbefork/` (2.4 GB) and `tools/emu-src/` added to `.gitignore` (both are git clones).
+- **Remaining (all optional/stretch):** Phase 2.1 stock→GRIN inverse (only needed if we ever emit stock-style loops), Phase 2.2 engine's own `.lua` compile probe, Phase 5 (socket console / editor / PDB deep end), and cross-machine multiplayer (the `game2/` second-instance harness is ready).

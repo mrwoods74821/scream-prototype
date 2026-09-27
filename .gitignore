@@ -17,6 +17,8 @@ tools/luadec/
 tools/DieselFormats/
 tools/emu-win/
 tools/emu-win.7z
+tools/emu-gbefork/
+tools/emu-src/
 tools/__pycache__/
 **/__pycache__/
 
