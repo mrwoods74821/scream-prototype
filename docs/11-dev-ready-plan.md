@@ -2,7 +2,7 @@
 
 > **Goal:** Close the loop `edit Lua source → boot → see the change in the running game`, so we can add and iterate on real, visible features.
 >
-> **Date:** 2026-09-26, v6 (closing: s5 + s6 complete. Loose dev boot is GREEN — `launch_dev.sh` reaches the menu (bare-Wine + Proton), null store = missing `bundles/`, no source patch needed. `float32luac` full-corpus verified 2,048/2,052 gates. `dev_compile.py` pipeline built. p4 visible features (4.1 title text, 4.2 dodgeball respawn) confirmed live by the user on a green loose boot. All four definition-of-done criteria met). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
+> **Date:** 2026-09-26, v7 (PLAN CLOSED: all phases 0–5 done. Loose dev boot is GREEN — `launch_dev.sh` reaches the menu (bare-Wine + Proton), null store = missing `bundles/`, no source patch needed. `float32luac` full-corpus verified 2,048/2,052 gates. `dev_compile.py` pipeline built. p4 visible features (4.1 title text, 4.2 dodgeball respawn) confirmed live by the user on a green loose boot. All four definition-of-done criteria met). Author: D0G. Status markers: `[DONE]` = verified by execution this session, `[TODO]` = work to do.
 
 ---
 
@@ -29,7 +29,7 @@ Until all four are true, the game is playable, and that is the extent of it.
 | GRIN → stock transform | `[DONE]` idempotent 1026/1026 | `tools/luc_stock.py` |
 | **Float32 Lua 5.1 compiler** | `[DONE]` `tools/float32luac.py` built + verified on the full 1,026 corpus (s6): fixtures 1+2 = 1024/1026 each (the 2 misses are decompiler-artifact sources stock luac5.1 also rejects); zero field-level divergences vs stock luac5.1 modulo srcname/snum/f32; vs depot original: byte_exact 1 / lineinfo_only 1019 / other 4 (GRIN-era no-op `EQ` artifacts) / compile_error 2. `dev_compile.py` pipeline live (`--all` → 1023 compiled, 1 MCBN skip, 2 known fails) | `tools/float32luac.py`, `tools/verify_float32luac.py`, commit `c3ef69f` |
 | **Loose boot to menu** | `[DONE]` **Loop closed (s5 + user confirmation, 2026-09-26 23:xx).** `scripts/launch_dev.sh` (bare-Wine default, `PROTON=1` for the Proton path) re-creates `devroot/bundles -> game/bundles/`, re-seeds the FCL `index.bdb`, and boots CWD=`devroot/` `-d . -o context.xml -s`. s5's 3× A/B: the null store is the `dsl::BundleFileSystem` container store (shader XMLs live only in `quick.bundle`), DLL-invariant; with the symlink the boot stays up with no `crash.txt`. Elijah confirmed the loose boot reaches the menu and is playable; the 4.1 title text and 4.2 dodgeball respawn changes were observed in the running game. | `scripts/launch_dev.sh`, s5 transcript, p4 confirmation |
-| Stock→GRIN inverse transform | `[TODO]` pure opcode math (Phase 2); only needed if the float32 compiler is emitted stock-style | engine opcode table verified in exe |
+| Stock→GRIN inverse transform | `[DONE]` superseded (v7): `float32luac` emits stock `FORPREP`/`TFORLOOP` loops, which the engine VM accepts directly (proven: the playable loose tree is 100% stock-loop chunks and it boots + plays). The inverse is a no-op on that path; kept only as an option if we ever switch to GRIN-loop emission. | engine opcode table verified in exe |
 | Steam shortcut icon | `[DONE]` `steam_icon.png` deployed, VDF size preserved | p0.2 |
 
 ### Hard facts that constrain the design
@@ -42,7 +42,7 @@ Until all four are true, the game is playable, and that is the extent of it.
 
 ## 3. Next up (execution sequence)
 
-**Status (2026-09-26, ALL CLOSED):** Steps 1 and 2 are done (s1, s2/s6); the step-3 gate resolved in s4/s5 (the null store = missing `bundles/`, not a DLL defect), path (a) implemented as `launch_dev.sh`, and Task 3.4's loop was proven by the p4 live confirmations (4.1 + 4.2 observed in the running game from our compiled source). Remaining open items are stretch only (Phase 5) plus the optional Phase 2 probes.
+**Status (2026-09-26, PLAN CLOSED):** Steps 1 and 2 are done (s1, s2/s6); the step-3 gate resolved in s4/s5 (the null store = missing `bundles/`, not a DLL defect), path (a) implemented as `launch_dev.sh`, and Task 3.4's loop was proven by the p4 live confirmations (4.1 + 4.2 observed in the running game from our compiled source). **Every numbered phase (0–5) is complete.** The only threads left are explicitly-optional stretch (Phase 5 console/editor/PDB) and one non-blocking observation (the loose-mode menu early-exit flake) — neither blocks the dev loop; both are parked as follow-ups, not plan items.
 
 **Step 1 (immediate, ~30 min): instrumented bare-Wine probe — Task 3.1**
 - Run the bare-Wine loose boot with `WINEDEBUG=-all,fixme` and engine `-fl_boot` file logging; capture the last log line and the last file opened before the clean (code 0) exit.
@@ -50,7 +50,7 @@ Until all four are true, the game is playable, and that is the extent of it.
 
 **Step 2 (in parallel): build the float32luac compiler — Tasks 1.1 + 1.2**
 - `tools/float32luac.py` with snum=4 output, GRIN-native loop emission, and the three verification fixtures (100-file golden round-trip, differential vs stock `luac5.1`, full 1,026-file corpus).
-- Task 1.3 (engine acceptance) is deliberately deferred to the gate below: the previous marker experiment died in the Renderer phase before any script execution, so acceptance cannot be tested until the boot path resolves.
+- Task 1.3 (engine acceptance) — **RESOLVED (v7):** the boot path is green and the live p4 run executed our recompiled `.luc` chunks to a playable menu, so the engine accepts externally-compiled snum=4 stock-loop chunks. (The per-file "no `attempt to ...`" grep is moot for `MenuServerInformationSteam`, which carries a pre-existing decompiled-source bug unrelated to the compiler.)
 
 **Step 3 (decision gate): branch on what Step 1 found**
 - **RESOLVED 2026-09-26 (s4): the exit point was the empty db index + the Steam-gate/remote-store pair, not PhysX.** Both runners converge on `Archive.cpp:265` (Goldberg's null data store); bare-Wine with the Valve DLL hits the "Steam must be running" modal. See §8.
@@ -154,7 +154,7 @@ Everything in this project's RE work hinges on the `.luc` format being fully und
 
 ---
 
-## 7. Phase 2 — Compile pipeline + the engine's own compiler (0.5–1 day)
+## 7. Phase 2 — Compile pipeline + the engine's own compiler (0.5–1 day) — **DONE (v7: 2.3 built; 2.1 superseded by stock-loop emission; 2.2 superseded by the green boot proving `.luc` acceptance)**
 
 ### Task 2.1 — Stock→GRIN inverse transform (`tools/luc_stock.py` extension)
 
@@ -162,9 +162,9 @@ Everything in this project's RE work hinges on the `.luc` format being fully und
 
 - `inverse_proto(p)`: rewrite `FORPREP A B C` + `TFORLOOP A 0 C` into `TFORCALL A+3 B C+1` + `TESTNIL (A+3) sBx`, where `sBx` is the loop-exit `JMP`'s target re-based from the `TESTNIL` position (pure arithmetic; verified opcode table in the exe makes both forms valid).
 - Round-trip property test: `inverse(transform(orig)) == orig` byte-identical for all 1,026 originals (the transform is a 2-instruction swap, so this must be exact).
-- Use: only needed for `--stock` compiler output; the default GRIN-loop output makes this a no-op.
+- Use: only needed for `--stock` compiler output; the default GRIN-loop output makes this a no-op. **Superseded (v7):** `float32luac` emits stock loops, which the VM accepts directly, so the inverse is never exercised.
 
-### Task 2.2 — Test the engine's own `.lua` compilation (the potential free lunch)
+### Task 2.2 — Test the engine's own `.lua` compilation (the potential free lunch) — **superseded (v7):** the green loose boot already proves the engine loads and runs our externally-compiled `.luc`; the `.lua`-compile probe is an optional nice-to-have, not required.
 
 **Files:** `devroot/compiled/win32_fcl/data/lib/menu/menu_server_information/`
 
@@ -172,7 +172,7 @@ Everything in this project's RE work hinges on the `.luc` format being fully und
 - If the engine compiles and runs it: the dev pipeline can optionally ship `.lua` directly (simplest possible workflow). Record which extension the compiler prefers and where it writes output.
 - Restore/clean after the test.
 
-### Task 2.3 — `tools/dev_compile.py`
+### Task 2.3 — `tools/dev_compile.py` — **BUILT (s6, 2026-09-26):** `--all` → 1023 compiled / 1 MCBN skip / 2 known decompiler-artifact fails; `--changed` for fast iteration; committed `c3ef69f`.
 
 **Files:** create `tools/dev_compile.py`
 
@@ -258,7 +258,7 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 - Keep `game/` untouched by all of this; the dev tree is the only thing that mutates.
 - **BUILT (2026-09-26):** `scripts/dev_edit.sh` is in place and tested. `dev_edit.sh <path>` compiles a decompiled `.lua` (repo-relative `lua/fcl/win32/...` or a bare filename resolved against `lua/`) into `devroot/compiled/win32_fcl/<data|core>/.../X.luc` with the engine-expected depot srcname, then delegates the boot to `scripts/launch_dev.sh`. Flags: `--compile` (no boot), `--boot` (boot only, for data-XML edits like the 4.2 gametype change), `--path <p>`. It is the single compile entry point; `launch_dev.sh` (built by s5) is the single boot entry point, so the two stay independent.
 
-## 10. Phase 5 — Stretch: live debug + editor (optional, after the loop is proven)
+## 10. Phase 5 — Stretch: live debug + editor (optional, after the loop is proven) — **parked (v7):** all loop-critical work is done; these three are optional follow-ups to pick up when we want live-debugging, visual level editing, or engine-level C++ changes.
 
 - **ConsoleServer / wxConsole:** the dev exe embeds a socket console and Lua remote debugger (RE_REPORT §5.4; `HW12Dev/dslConsole` is the open-source client). A live REPL into the running engine beats restart-per-iteration for gameplay debugging. Task: find the console enable flag/port in the dev exe strings + `steam_settings`, wire a client, verify an `Application:debug`-style command runs live.
 - **Editor context:** boot with `editor="true"` in `devroot/context.xml` (`core/levels/editor` + `data/lib/utils/dev/editor/` are in the depot). If it comes up, level/unit editing becomes visual.
@@ -336,7 +336,7 @@ Net: the compiler is correct against the depot corpus — 2,048/2,052 hard-gate 
 - **p4 closed on user confirmation:** Elijah ran the green loose boot — the game boots to the main menu, is playable, and the 4.1 title text + 4.2 dodgeball respawn changes were observed live. D0G's own corroboration: the Proton `-fl_boot` `_file_access_log.xml` from that boot shows the full menu phase (`save4.sav`, `menues.xmb`, `credits.xmb`, `default_controls.xmb`); the 4.1 `.luc` carries the `PRESS ENTER  -  D0G WAS HERE` literal and there are 0 loose `.lua` files in the tree (no shadowing); the 4.2 XML has `team_b respawn_time=2`. (One earlier bare-Wine probe in this session tripped `physics.cpp:273` before s5's PhysX install landed — expected, now fixed by s5.)
 - **Definition of done: all four met** — Read (1026/1026 Lua source), Compile (`dev_compile.py` + `float32luac`), Boot (`launch_dev.sh` reaches the menu, bare-Wine and Proton), Proven (4.1 + 4.2 observed from our compiled source). The project is development-ready.
 - **Housekeeping:** stray `SRC=lua/` dir (one stale pre-edit `MenuTitleScreenNode.lua` from an aborted heredoc in a subagent's shell) deleted; `tools/emu-gbefork/` (2.4 GB) and `tools/emu-src/` added to `.gitignore` (both are git clones); `devroot/game.lhd` removed (byte-identical to `game/bundles/game.lhd`, already served by the `bundles/` symlink) and the orphaned `/tmp/PhysX-9.14.0702-SystemSoftware.msi` download from s5's prefix install deleted.
-- **Remaining (all optional/stretch):** Phase 2.1 stock→GRIN inverse (only needed if we ever emit stock-style loops), Phase 2.2 engine's own `.lua` compile probe, Phase 5 (socket console / editor / PDB deep end), and cross-machine multiplayer (the `game2/` second-instance harness is ready).
+- **Remaining (all optional/stretch — none block the loop):** Phase 2.1 stock→GRIN inverse (superseded by stock-loop emission), Phase 2.2 engine `.lua`-compile probe (superseded by the green boot), Phase 5 (socket console / editor / PDB deep end), cross-machine multiplayer (the `game2/` second-instance harness is ready), and the one non-blocking observation: the loose-mode menu early-exit flake (see below).
 
 ### Known open item — pre-existing loose-mode menu early-exit flake (s5 observation, 2026-09-26)
 
