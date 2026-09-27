@@ -220,17 +220,35 @@ function core_setup_apply_aspect_settings()
   core_setup.aspect_ratio = core_setup_get_aspect()
   core_setup.wide = core_setup.aspect_ratio > 1.34
 end
-function core_setup_display_mode()
+-- Resolve the best display mode for the current desktop from the C++-enumerated
+-- modes: 1) exact match; 2) otherwise the largest mode at-or-below the desktop
+-- in both axes (a multi-monitor desktop wider than any single panel, e.g.
+-- 3840x1080, has no exact mode - fall to the biggest that fits, never upscale);
+-- 3) otherwise the current RenderSettings.resolution.
+function core_setup_pick_mode()
   local desk = SystemInfo:desktop_resolution()
   local winner = RenderSettings.resolution
   if desk and desk.y > 0 then
     for _, res in ipairs(RenderSettings.modes) do
       if res.x == desk.x and res.y == desk.y then
-        winner = res
-        break
+        return res
+      end
+    end
+    local best_area = -1
+    for _, res in ipairs(RenderSettings.modes) do
+      if res.x <= desk.x and res.y <= desk.y then
+        local area = res.x * res.y
+        if area > best_area then
+          best_area = area
+          winner = res
+        end
       end
     end
   end
+  return winner
+end
+function core_setup_display_mode()
+  local winner = core_setup_pick_mode()
   return Vector3(winner.x, winner.y, winner.z)
 end
 function core_setup_get_mode()
@@ -277,16 +295,12 @@ function core_setup_display_sync()
   -- Pick the display native mode (the one whose dimensions match the desktop)
   -- from the modes the C++ layer enumerated. Falls back to the current
   -- RenderSettings.resolution if the desktop resolution is not in the list.
-  local desk = SystemInfo:desktop_resolution()
-  local winner = RenderSettings.resolution
-  if desk and desk.y > 0 then
-    for _, res in ipairs(RenderSettings.modes) do
-      if res.x == desk.x and res.y == desk.y then
-        winner = res
-        break
-      end
-    end
-  end
+  -- Pick the best fitting display mode (see core_setup_pick_mode): exact match,
+  -- else the largest mode at-or-below the desktop (multi-monitor wide desktops
+  -- have no exact mode), else the current resolution. The C++ device reads this
+  -- config at creation on the NEXT boot, so writing the correct mode here is
+  -- what makes the game start at the display native resolution (borderless).
+  local winner = core_setup_pick_mode()
   -- Apply the mode to the C++ render binding so the re-serializer persists it
   RenderSettings.resolution = winner
   RenderSettings.fullscreen = true
@@ -341,10 +355,25 @@ function core_setup_get_aspect()
 end
 function core_setup.update(time, rel_time)
   if core_setup.flag_rs_apply then
-    Application:apply_render_settings()
-    core_setup.flag_rs_apply = false
-    if managers.viewport then
-      managers.viewport:resolution_changed()
+    -- The C++ D3D device does not exist on the first update after init, and
+    -- RenderSettings.modes is empty until the device enumerates its video
+    -- modes. So core_setup_resolution() at init time picked the C++
+    -- pre-seeded default (e.g. 1280x720). apply_render_settings is a no-op
+    -- until the device exists. Therefore: keep the flag set until the modes
+    -- list is populated, then RE-PICK the native display mode (largest-fitting
+    -- for multi-monitor) and commit it, so the device renders at the display
+    -- native resolution from the very first frame.
+    if RenderSettings.modes and #RenderSettings.modes > 0 then
+      local winner = core_setup_pick_mode()
+      RenderSettings.resolution = winner
+      RenderSettings.fullscreen = true
+      core_setup.aspect_ratio = winner.x / winner.y
+      core_setup.wide = core_setup.aspect_ratio > 1.34
+      Application:apply_render_settings()
+      core_setup.flag_rs_apply = false
+      if managers.viewport then
+        managers.viewport:resolution_changed()
+      end
     end
   end
   if managers.controller.update then
@@ -425,8 +454,15 @@ function core_setup.update(time, rel_time)
 end
 function core_setup.paused_update(time, rel_time)
   if core_setup.flag_rs_apply then
-    Application:apply_render_settings()
-    core_setup.flag_rs_apply = false
+    if RenderSettings.modes and #RenderSettings.modes > 0 then
+      local winner = core_setup_pick_mode()
+      RenderSettings.resolution = winner
+      RenderSettings.fullscreen = true
+      core_setup.aspect_ratio = winner.x / winner.y
+      core_setup.wide = core_setup.aspect_ratio > 1.34
+      Application:apply_render_settings()
+      core_setup.flag_rs_apply = false
+    end
   end
   if managers.controller.update then
     managers.controller:paused_update(time, rel_time)
