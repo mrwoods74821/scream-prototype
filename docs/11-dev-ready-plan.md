@@ -242,6 +242,7 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 
 - Pick one small, safe, observable gameplay rule — e.g. a HUD/debug text element toggled by a new keybinding in `data/settings/default_controls`, or a modifier in one of the `scream_*` gamemodes' unit behavior (the 8 MP gamemodes + 84 unit XMLs are all data-driven and editable).
 - Same pipeline; the change must be visible during a round, in the gameplay itself.
+- **STAGED (2026-09-26):** `devroot/compiled/win32_fcl/data/levels/common/scream_dodgeball_gamemode.xml` — `team_b` (the 7 survivors in the 1v7 dodgeball mode) `respawn_time` 6 → 2 seconds. Pure data XML (the engine reads it directly from the loose tree; no `.luc` compile needed). Original preserved at `/tmp/scream_dodgeball_gamemode.xml.orig`. Like the 4.1 `.luc`, it's in place now and becomes observable on the first green loose boot (same data-store path the null-store fix must repair).
 
 ### Task 4.3 — Iteration ergonomics
 
