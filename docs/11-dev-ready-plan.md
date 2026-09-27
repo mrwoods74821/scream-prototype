@@ -236,6 +236,7 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 - Edit the press-`Enter` prompt in `lua/fcl/win32/data/lib/managers/menu/MenuTitleScreenNode.lua` (the `managers.localizer:text("lag_press_enter")` call site — replace with a literal like `"PRESS ENTER — D0G WAS HERE"`, or better, add a new entry to the localized strings XMB and reference it).
 - Pipeline: `dev_compile.py --changed` → `launch_dev.sh` → observe the title screen.
 - Restore (or keep, if Elijah wants the easter egg).
+- **STAGED (2026-09-26):** edited the WIN32 branch to the literal `text = "PRESS ENTER  -  D0G WAS HERE"` (pure-Lua; no xmb surgery, so it compiles through `float32luac` with no string-table rebuild). Compiled + deployed to `devroot/compiled/win32_fcl/data/lib/managers/menu/MenuTitleScreenNode.luc` with `--srcname 'data\lib\managers\menu\MenuTitleScreenNode.lua'`. **Verified:** the output's header + srcname block is byte-identical to the depot original (`data\lib\...\MenuTitleScreenNode.lua`, 47-byte block); the constant table now carries `PRESS ENTER  -  D0G WAS HERE` and `lag_press_enter` is gone; `snum=4`, 9859 bytes. Live confirmation is blocked on the loose-boot launch path (s5) — the `.luc` is in place and will be seen on the first green loose boot.
 
 ### Task 4.2 — Gameplay behavior change
 
