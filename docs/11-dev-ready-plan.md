@@ -248,6 +248,7 @@ Each item below must be *seen in the running game* (window observed via xdotool;
 
 - `scripts/dev_edit.sh <file>` — opens the decompiled source for a path, and on save runs the compile+boot pipeline automatically (edit → boot in one keystroke).
 - Keep `game/` untouched by all of this; the dev tree is the only thing that mutates.
+- **BUILT (2026-09-26):** `scripts/dev_edit.sh` is in place and tested. `dev_edit.sh <path>` compiles a decompiled `.lua` (repo-relative `lua/fcl/win32/...` or a bare filename resolved against `lua/`) into `devroot/compiled/win32_fcl/<data|core>/.../X.luc` with the engine-expected depot srcname, then delegates the boot to `scripts/launch_dev.sh`. Flags: `--compile` (no boot), `--boot` (boot only, for data-XML edits like the 4.2 gametype change), `--path <p>`. It is the single compile entry point; `launch_dev.sh` (built by s5) is the single boot entry point, so the two stay independent.
 
 ## 10. Phase 5 — Stretch: live debug + editor (optional, after the loop is proven)
 
