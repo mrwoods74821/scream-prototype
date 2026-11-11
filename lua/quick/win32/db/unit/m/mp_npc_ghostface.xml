@@ -1,0 +1,45 @@
+<unit type="being" name="mp_npc_ghostface" slot="4" xmlns:xi="http://www.w3.org/2001/XInclude">
+  <model file="mp_player_ghostface"/>
+  <depends_on unit="mp_freeflight"/>
+  <depends_on unit="wpn_knife"/>
+  <depends_on effect="ghostface_vanish"/>
+  <xi:include href="mp_archetype_generics.xml#xpointer(/effects/*)" />
+  <mover floor_timer_limit="0.1" push_force="0.005" name="stand" max_hard_floor_angle="60" high_quality="false" max_floor_angle="60" mass="80" size="100 100 160"/>
+  <anim_state_machine name="player_machine"/>
+  <extension name="unit_data" class="ScriptUnitData"/>
+  <extension name="player_data" class="PlayerData">
+    <var name="archetype" value="ghostface"/>
+    <var name="ai_character" value="true"/>
+  </extension>
+  <extension name="damage_data" class="DamageData">
+    <var name="invulnerable_duration" value="15"/>
+  </extension>
+  <extension name="locomotion_data" class="LocomotionData"/>
+  <extension name="ai_data" class="BTBrainData"/>
+  <extension name="locomotion" class="LocomotionController"/>
+  <extension name="damage" class="MPNPCDamage"/>
+  <extension name="unit_effects" class="UnitEffects"/>
+  <extension name="ik" class="IkPlayer"/>
+  <extension name="inventory" class="MPPlayerInventory"/>
+  <extension name="aim" class="MPDummy"/>
+  <extension name="voice" class="MPDummy"/>
+  <extension name="environment" class="MPDummy"/>
+  <extension name="intel" class="MPDummy"/>
+  <extension name="stalker_checker" class="StalkerChecker"/>
+  <extension name="base" class="MPNpc"/>
+  <extension name="synergy" class="PlayerSynergyHusk"/>
+  <extension name="brain" class="BTBrain">
+    <var name="behavior_tree_name" value="Ghostface"/>
+    <var name="skill_template_name" value="normal"/>
+  </extension>
+  <network remote_unit="mp_player_ghostface_husk" sync="client" sync_rotation="true"/>
+  <sounds>
+    <soundbank name="fire_sound"/>
+    <soundbank name="player_sound"/>
+    <soundbank name="multiplayer_sound"/>
+    <soundbank name="wst_pickup_sound"/>
+    <soundbank name="bullet_hits_sound"/>
+    <soundbank name="hud_sound"/>
+    <default_soundsource source="sound"/>
+  </sounds>
+</unit>
