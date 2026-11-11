@@ -1,0 +1,11 @@
+<bt>
+  <Selector name="Ghostface">
+    <Action type="BTKnockedOutAction" condition="knocked_out" />
+    <Action type="BTExecuteAction" condition="can_execute_knocked_out" />
+    <Selector name="Hunt" condition="bot_has_enemy">
+      <Action type="BTHuntAction" />
+      <Action type="BTStalkAction" />
+    </Selector>
+    <Action type="BTWanderAction" />
+  </Selector>
+</bt>

@@ -1,0 +1,8 @@
+<bt>
+  <Selector name="Survivor">
+    <Action type="BTKnockedOutAction" condition="knocked_out" />
+    <Action type="BTFleeAction" condition="killer_visible_or_near" />
+    <Action type="BTObjectiveAction" condition="has_available_objective" />
+    <Action type="BTWanderAction" />
+  </Selector>
+</bt>
